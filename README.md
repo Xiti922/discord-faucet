@@ -11,7 +11,7 @@ npm install
 
 ## Configure as a system service and start the bot
 ```bash
-sudo cp .systemctl.ubuntu.service /etc/systemd/system/discordfaucet.service
+sudo cp .systemctl.service /etc/systemd/system/discordfaucet.service
 # Start service
 sudo systemctl start discordfaucet
 # Enable service on startup
