@@ -8,6 +8,21 @@ cp env.example .env
 # Now edit .env to add the Discord auth token for your server
 ```
 
+## Configure as a system service and start the bot
+```bash
+sudo cp .systemctl.ubuntu.service /etc/systemd/system/discordfaucet.service
+# Start service
+sudo systemctl start discordfaucet
+# Enable service on startup
+sudo systemctl enable discordfaucet
+```
+
+## Add the bot to your Discord server
+- https://discordjs.guide/preparations/setting-up-a-bot-application.html
+- https://discordjs.guide/preparations/adding-your-bot-to-servers.html
+
+## Using the bot
+
 After adding the bot to your Discord server, the `!faucet` command will become available to any channels where the bot can read and send messages.
 
 Command Examples:
