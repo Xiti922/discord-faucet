@@ -6,6 +6,7 @@ git clone git@github.com:archway-network/discord-faucet.git
 cd discord-faucet
 cp env.example .env
 # Now edit .env to add the Discord auth token for your server
+npm install
 ```
 
 ## Configure as a system service and start the bot
