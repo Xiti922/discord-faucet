@@ -78,12 +78,12 @@ async function faucetClaim(address = null) {
 
   let requests = [
     {address: address, coins: ['10000000' + ChainInfo.augusta.currencies[0].coinMinimalDenom]},
-    {address: address, coins: ['10000000' + ChainInfo.constantine.currencies[0].coinMinimalDenom]},
-    {address: address, coins: ['10000000' + ChainInfo.titus.currencies[0].coinMinimalDenom]}
+    // {address: address, coins: ['10000000' + ChainInfo.constantine.currencies[0].coinMinimalDenom]},
+    // {address: address, coins: ['10000000' + ChainInfo.titus.currencies[0].coinMinimalDenom]}
   ];
 
   try {
-    let responseMsg = '', successes = 0;
+    let responseMsg = '';
     for (let i = 0; i < requests.length; i++) {
       let headers, success;
       if (FaucetAuth[i].user && FaucetAuth[i].key) {
@@ -95,7 +95,6 @@ async function faucetClaim(address = null) {
       // Success / Network error
       if (success) {
         responseMsg += "\n" + DEFAULT_SUCCESS_MSG_PREFIX + "\n- " + BlockExplorers[i] + address;
-        ++successes
       } else {
         responseMsg += "\n- " + NETWORK_ERROR_MSG_PREFIX + endpoints[i] + '';
       }
@@ -105,7 +104,7 @@ async function faucetClaim(address = null) {
       }
     }
   } catch (e) {
-    console.log(e);
+    // console.log(e);
     return DEFAULT_NETWORK_ERROR_MSG;
   }
 
