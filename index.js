@@ -2,9 +2,25 @@ const dotenv = require('dotenv').config();
 const axios = require('axios');
 const Discord = require('discord.js');
 
+global.Buffer = global.Buffer || require('buffer').Buffer;
+
 const AugustaInfo = require('./conf/chain.info.augusta');
 const ConstantineInfo = require('./conf/chain.info.constantine');
 const TitusInfo = require('./conf/chain.info.titus');
+
+// Config parser
+let config;
+if (dotenv.error) {
+  throw dotenv.error
+} else {
+  config = dotenv.parsed;
+}
+
+if (typeof btoa === 'undefined') {
+  global.btoa = function (str) {
+    return Buffer.from(str, 'binary').toString('base64');
+  };
+}
 
 const ChainInfo = {
   augusta: AugustaInfo,
@@ -18,28 +34,47 @@ const BlockExplorers = [
   'https://explorer.titus-1.archway.tech/account/'
 ];
 
-DEFAULT_ERROR_MSG = 'I don\'t understand, tell me more 🤔 \n**Example request:** `!faucet archway1znhxr5j4ty5rz09z49thrj7gnxpm9jl5nnmvjx`';
-DEFAULT_HELP_MSG = '\n**Usage:** `!faucet {address}` \n**Example request:** `!faucet archway1znhxr5j4ty5rz09z49thrj7gnxpm9jl5nnmvjx`';
-DEFAULT_SUCCESS_MSG_PREFIX = 'Your faucet claim has been processed 🎉, check your new balances at: ';
-NETWORK_ERROR_MSG_PREFIX = 'Oops, we\'re having trouble connecting to faucet network: ';
-NETWORK_ERROR_MSG_SUFFIX = "\nPlease wait a bit and try again 🤔"
+const FaucetAuth = [
+  {user: config.AUTH_USER_AUGUSTA, key: config.AUTH_AUGUSTA},
+  {user: config.AUTH_USER_CONSTANTINE, key: config.AUTH_CONSTANTINE},
+  {user: config.AUTH_USER_TITUS, key: config.AUTH_TITUS}
+];
 
-// Config parser
-let config;
-if (dotenv.error) {
-  throw dotenv.error
-} else {
-  config = dotenv.parsed;
-}
+const endpoints = [
+  ChainInfo.augusta.faucets[0],
+  ChainInfo.constantine.faucets[0],
+  ChainInfo.titus.faucets[0]
+];
+
+const DEFAULT_ERROR_MSG = 'I don\'t understand, tell me more 🤔 \n**Example request:** `!faucet archway1znhxr5j4ty5rz09z49thrj7gnxpm9jl5nnmvjx`';
+const DEFAULT_HELP_MSG = '\n**Usage:** `!faucet {address}` \n**Example request:** `!faucet archway1znhxr5j4ty5rz09z49thrj7gnxpm9jl5nnmvjx`';
+const DEFAULT_SUCCESS_MSG_PREFIX = 'Your faucet claim has been processed 🎉, check your new balances at: ';
+const DEFAULT_NETWORK_ERROR_MSG = 'Oops, we\'re having trouble connecting to one of the faucet networks.\nPlease wait a bit and try again 🤔';
+const NETWORK_ERROR_MSG_PREFIX = 'Request failed to faucet network: ';
 
 const client = new Discord.Client();
 
-// console.log(ChainInfo.titus.faucets[0]);
+async function requestHandler(endpoint, request, headers = null) {
+  const apiClient = axios.create();
+  let success = false;
+  try {
+    if (headers) {
+      await apiClient.post(endpoint, request, {headers});
+    } else {
+      await apiClient.post(endpoint, request);
+    }
+    success = true;
+    return success;
+  } catch (e) {
+    console.log(e, headers);
+    return success;
+  }
+}
+
 async function faucetClaim(address = null) {
   if (!address) {
     return DEFAULT_ERROR_MSG;
   }
-  const apiClient = axios.create();
 
   let requests = [
     {address: address, coins: ['10000000' + ChainInfo.augusta.currencies[0].coinMinimalDenom]},
@@ -47,31 +82,31 @@ async function faucetClaim(address = null) {
     {address: address, coins: ['10000000' + ChainInfo.titus.currencies[0].coinMinimalDenom]}
   ];
 
-  let endpoints = [
-    ChainInfo.augusta.faucets[0],
-    ChainInfo.constantine.faucets[0],
-    ChainInfo.titus.faucets[0]
-  ];
-
   try {
+    let responseMsg = '', successes = 0;
     for (let i = 0; i < requests.length; i++) {
-      let res = await apiClient.post(endpoints[i], requests[i]);
-      // Network error
-      if (res.status !== 200 || !res['data']) {
-        console.log('Error parsing result', res);
-        return NETWORK_ERROR_MSG_PREFIX + endpoints[i] + NETWORK_ERROR_MSG_SUFFIX;
+      let headers, success;
+      if (FaucetAuth[i].user && FaucetAuth[i].key) {
+        headers = {Authorization: 'Basic ' + btoa(FaucetAuth[i].user + ':' + FaucetAuth[i].key)};
+        success = await requestHandler(endpoints[i], requests[i], {headers});
+      } else {
+        success = await requestHandler(endpoints[i], requests[i]);
       }
-      // 3x Success
+      // Success / Network error
+      if (success) {
+        responseMsg += "\n" + DEFAULT_SUCCESS_MSG_PREFIX + "\n- " + BlockExplorers[i] + address;
+        ++successes
+      } else {
+        responseMsg += "\n- " + NETWORK_ERROR_MSG_PREFIX + endpoints[i] + '';
+      }
+      // Return status replies
       if (i == (requests.length-1)) {
-        let successSuffix = "\n- " + BlockExplorers[0] + address;
-        successSuffix += "\n- " + BlockExplorers[1] + address;
-        successSuffix += "\n- " +  BlockExplorers[2] + address;
-        return DEFAULT_SUCCESS_MSG_PREFIX + successSuffix;
+        return responseMsg;
       }
     }
   } catch (e) {
     console.log(e);
-    return DEFAULT_ERROR_MSG;
+    return DEFAULT_NETWORK_ERROR_MSG;
   }
 
 }
