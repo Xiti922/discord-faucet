@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 const dotenv = require('dotenv').config();
 const axios = require('axios');
 const Discord = require('discord.js');
