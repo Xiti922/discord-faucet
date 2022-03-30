@@ -2,8 +2,6 @@ const dotenv = require('dotenv').config();
 const axios = require('axios');
 const Discord = require('discord.js');
 
-global.Buffer = global.Buffer || require('buffer').Buffer;
-
 const AugustaInfo = require('./conf/chain.info.augusta');
 const ConstantineInfo = require('./conf/chain.info.constantine');
 const TitusInfo = require('./conf/chain.info.titus');
@@ -14,12 +12,6 @@ if (dotenv.error) {
   throw dotenv.error
 } else {
   config = dotenv.parsed;
-}
-
-if (typeof btoa === 'undefined') {
-  global.btoa = function (str) {
-    return Buffer.from(str, 'binary').toString('base64');
-  };
 }
 
 const ChainInfo = {
@@ -48,7 +40,7 @@ const endpoints = [
 
 const DEFAULT_ERROR_MSG = 'I don\'t understand, tell me more 🤔 \n**Example request:** `!faucet archway1znhxr5j4ty5rz09z49thrj7gnxpm9jl5nnmvjx`';
 const DEFAULT_HELP_MSG = '\n**Usage:** `!faucet {address}` \n**Example request:** `!faucet archway1znhxr5j4ty5rz09z49thrj7gnxpm9jl5nnmvjx`';
-const DEFAULT_SUCCESS_MSG_PREFIX = 'Your faucet claim has been processed 🎉, check your new balances at: ';
+const DEFAULT_SUCCESS_MSG_PREFIX = 'Faucet claim was processed 🎉, check your new balances at: ';
 const DEFAULT_NETWORK_ERROR_MSG = 'Oops, we\'re having trouble connecting to one of the faucet networks.\nPlease wait a bit and try again 🤔';
 const NETWORK_ERROR_MSG_PREFIX = 'Request failed to faucet network: ';
 
@@ -59,7 +51,7 @@ async function requestHandler(endpoint, request, headers = null) {
   let success = false;
   try {
     if (headers) {
-      await apiClient.post(endpoint, request, {headers});
+      await apiClient.post(endpoint, request, headers);
     } else {
       await apiClient.post(endpoint, request);
     }
@@ -78,8 +70,8 @@ async function faucetClaim(address = null) {
 
   let requests = [
     {address: address, coins: ['10000000' + ChainInfo.augusta.currencies[0].coinMinimalDenom]},
-    // {address: address, coins: ['10000000' + ChainInfo.constantine.currencies[0].coinMinimalDenom]},
-    // {address: address, coins: ['10000000' + ChainInfo.titus.currencies[0].coinMinimalDenom]}
+    {address: address, coins: ['10000000' + ChainInfo.constantine.currencies[0].coinMinimalDenom]},
+    {address: address, coins: ['10000000' + ChainInfo.titus.currencies[0].coinMinimalDenom]}
   ];
 
   try {
@@ -87,14 +79,19 @@ async function faucetClaim(address = null) {
     for (let i = 0; i < requests.length; i++) {
       let headers, success;
       if (FaucetAuth[i].user && FaucetAuth[i].key) {
-        headers = {Authorization: 'Basic ' + btoa(FaucetAuth[i].user + ':' + FaucetAuth[i].key)};
-        success = await requestHandler(endpoints[i], requests[i], {headers});
+        headers = {
+          auth: {
+            username: FaucetAuth[i].user,
+            password: FaucetAuth[i].key
+          }
+        };
+        success = await requestHandler(endpoints[i], requests[i], headers);
       } else {
         success = await requestHandler(endpoints[i], requests[i]);
       }
       // Success / Network error
       if (success) {
-        responseMsg += "\n" + DEFAULT_SUCCESS_MSG_PREFIX + "\n- " + BlockExplorers[i] + address;
+        responseMsg += "\n- " + DEFAULT_SUCCESS_MSG_PREFIX + " " + BlockExplorers[i] + address;
       } else {
         responseMsg += "\n- " + NETWORK_ERROR_MSG_PREFIX + endpoints[i] + '';
       }
