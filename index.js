@@ -1,12 +1,28 @@
 #!/usr/bin/env node
 
+const winston = require('winston');
+const logger = winston.createLogger({
+  level: 'debug',
+  levels: winston.config.cli.levels,
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.Console({
+      format: winston.format.combine(
+        winston.format.colorize(),
+        winston.format.simple()
+      ),
+    })
+  ]
+});
+
+logger.info('Initializing Discord faucet bot...');
+
 const dotenv = require('dotenv').config();
 const axios = require('axios');
 const Discord = require('discord.js');
-
-const AugustaInfo = require('./conf/chain.info.augusta');
-const ConstantineInfo = require('./conf/chain.info.constantine');
-const TitusInfo = require('./conf/chain.info.titus');
 
 // Config parser
 if (dotenv.error) {
@@ -15,110 +31,101 @@ if (dotenv.error) {
 
 const config = dotenv.parsed;
 
-const ChainInfo = {
-  augusta: AugustaInfo,
-  constantine: ConstantineInfo,
-  titus: TitusInfo
-};
-
-const BlockExplorers = [
-  'https://explorer.augusta-1.archway.tech/account/',
-  'https://explorer.constantine-1.archway.tech/account/',
-  'https://explorer.titus-1.archway.tech/account/'
-];
-
-const FaucetAuth = [
-  { user: config.AUTH_USER_AUGUSTA, key: config.AUTH_AUGUSTA },
-  { user: config.AUTH_USER_CONSTANTINE, key: config.AUTH_CONSTANTINE },
-  { user: config.AUTH_USER_TITUS, key: config.AUTH_TITUS }
-];
-
-const endpoints = [
-  ChainInfo.augusta.faucets[0],
-  ChainInfo.constantine.faucets[0],
-  ChainInfo.titus.faucets[0]
-];
-
 const DEFAULT_ERROR_MSG = 'I don\'t understand, tell me more 🤔 \n**Example request:** `!faucet archway1znhxr5j4ty5rz09z49thrj7gnxpm9jl5nnmvjx`';
 const DEFAULT_HELP_MSG = '\n**Usage:** `!faucet {address}` \n**Example request:** `!faucet archway1znhxr5j4ty5rz09z49thrj7gnxpm9jl5nnmvjx`';
-const DEFAULT_SUCCESS_MSG_PREFIX = 'Faucet claim was processed 🎉, check your new balances at: ';
-const DEFAULT_NETWORK_ERROR_MSG = 'Oops, we\'re having trouble connecting to one of the faucet networks.\nPlease wait a bit and try again 🤔';
-const NETWORK_ERROR_MSG_PREFIX = 'Request failed to faucet network: ';
 
 const client = new Discord.Client();
 
-async function requestHandler(endpoint, request, headers = null) {
-  const apiClient = axios.create();
-  try {
-    if (headers) {
-      await apiClient.post(endpoint, request, headers);
-    } else {
-      await apiClient.post(endpoint, request);
-    }
-    return true;
-  } catch (e) {
-    console.log(e, headers);
-    return false;
+class Chain {
+  constructor(chainName) {
+    this.chainName = chainName;
+
+    const chainInfo = require(`./conf/chain.info.${chainName}`);
+    this.explorer = `https://explorer.${chainName}-1.archway.tech/account`;
+    this.coinMinimalDenom = chainInfo.currencies[0].coinMinimalDenom;
+
+    const auth = {
+      username: config[`AUTH_USER_${chainName.toUpperCase()}`],
+      password: config[`AUTH_${chainName.toUpperCase()}`]
+    };
+
+    this.faucet = axios.create({
+      baseURL: chainInfo.faucets[0],
+      timeout: 5 * 60 * 1000, // 5 minutes,
+      auth
+    });
+
+    logger.debug(`Chain ${chainName} initialized`);
+  }
+
+  async faucetClaim(address) {
+    await this.faucet.post('/', {
+      address,
+      coins: [`10000000${this.coinMinimalDenom}`]
+    });
   }
 }
 
-async function faucetClaim(address = null) {
-  if (!address) {
-    return DEFAULT_ERROR_MSG;
-  }
+const Chains = ['augusta', 'constantine', 'titus'].map(chainName => new Chain(chainName));
 
-  let requests = [
-    {address: address, coins: ['10000000' + ChainInfo.augusta.currencies[0].coinMinimalDenom]},
-    {address: address, coins: ['10000000' + ChainInfo.constantine.currencies[0].coinMinimalDenom]},
-    {address: address, coins: ['10000000' + ChainInfo.titus.currencies[0].coinMinimalDenom]}
-  ];
-
-  try {
-    let responseMsg = '';
-
-    for (let i = 0; i < requests.length; i++) {
-      const headers = {
-        auth: {
-          username: FaucetAuth[i].user,
-          password: FaucetAuth[i].key
-        }
-      };
-      const success = await requestHandler(endpoints[i], requests[i], headers);
-      // Success / Network error
-      if (success) {
-        responseMsg += "\n- " + DEFAULT_SUCCESS_MSG_PREFIX + " " + BlockExplorers[i] + address;
-      } else {
-        responseMsg += "\n- " + NETWORK_ERROR_MSG_PREFIX + endpoints[i] + '';
-      }
-      // Return status replies
-      if (i == (requests.length - 1)) {
-        return responseMsg;
-      }
+async function faucetClaim(address, metadata) {
+  const faucetLogger = logger.child({ address, ...metadata });
+  faucetLogger.info(`Requesting funds`);
+  const requests = Chains.map(async chain => {
+    const { chainName } = chain;
+    const chainLogger = faucetLogger.child({ chainName });
+    try {
+      chainLogger.info(`Sending claim request`);
+      await chain.faucetClaim(address);
+      return `- Faucet claim was processed 🎉, check your new balances at: ${chain.explorer}/${address}`;
+    } catch (e) {
+      chainLogger.error('Claim request failed', { reason: e });
+      return `- Request to faucet on ${chain.chainName} network failed`;
+    } finally {
+      chainLogger.info(`Claim request finished`);
     }
-  } catch (e) {
-    // console.log(e);
-    return DEFAULT_NETWORK_ERROR_MSG;
-  }
+  });
 
+  const messages = await Promise.all(requests);
+  return `\n${messages.join('\n')}`;
 }
 
-client.on('message', async (msg) => {
-  // Bot handler
-  if (msg.content.substring(0,7) === '!faucet') {
-    
-    let msgPieces = msg.content.split(' ');
-    
-    // E.g. !faucet {address}
-    if (msgPieces.length !== 2) {
-      return msg.reply(DEFAULT_ERROR_MSG);
-    } else if (msgPieces[1].substring(0,7) !== 'archway') {
-      return msg.reply(DEFAULT_HELP_MSG);
-    }
+function isArchwayAddress(address) {
+  const regexp = new RegExp('^(archway)1([a-z0-9]+)$');
+  return regexp.test(address);
+}
 
-    let userAddress = msgPieces[1].trim();
-    let resolvedMsg = await faucetClaim(userAddress);
-    return msg.reply(resolvedMsg);
+client.on('ready', () => {
+  logger.info(`Logged in as ${client.user.tag}! Waiting for messages...`);
+});
+
+// Bot handler
+// Usage: !faucet {address}
+client.on('message', async message => {
+  const {
+    id: messageId,
+    channel: { name: channelName = '' } = {},
+    author: { username: authorUsername } = {},
+    content: messageContent = ''
+  } = message;
+
+  logger.verbose(`Message received`, { messageId, channelName, authorUsername, messageContent });
+
+  if (!channelName.endsWith('faucet')) return;
+
+  const content = messageContent.trim().split(' ');
+  const [command, address] = content;
+  if (command !== '!faucet') return;
+
+  if (content.length !== 2) {
+    return message.reply(DEFAULT_ERROR_MSG);
   }
+  if (!isArchwayAddress(address)) {
+    return message.reply(DEFAULT_HELP_MSG);
+  }
+
+  let claimResponse = await faucetClaim(address, { messageId, authorUsername });
+  // return message.reply(claimResponse);
 });
 
 client.login(config.DISCORD_TOKEN);
