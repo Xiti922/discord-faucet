@@ -9,12 +9,11 @@ const ConstantineInfo = require('./conf/chain.info.constantine');
 const TitusInfo = require('./conf/chain.info.titus');
 
 // Config parser
-let config;
 if (dotenv.error) {
   throw dotenv.error
-} else {
-  config = dotenv.parsed;
 }
+
+const config = dotenv.parsed;
 
 const ChainInfo = {
   augusta: AugustaInfo,
@@ -23,15 +22,15 @@ const ChainInfo = {
 };
 
 const BlockExplorers = [
-  'https://explorer.augusta-1.archway.tech/account/', 
-  'https://explorer.constantine-1.archway.tech/account/', 
+  'https://explorer.augusta-1.archway.tech/account/',
+  'https://explorer.constantine-1.archway.tech/account/',
   'https://explorer.titus-1.archway.tech/account/'
 ];
 
 const FaucetAuth = [
-  {user: config.AUTH_USER_AUGUSTA, key: config.AUTH_AUGUSTA},
-  {user: config.AUTH_USER_CONSTANTINE, key: config.AUTH_CONSTANTINE},
-  {user: config.AUTH_USER_TITUS, key: config.AUTH_TITUS}
+  { user: config.AUTH_USER_AUGUSTA, key: config.AUTH_AUGUSTA },
+  { user: config.AUTH_USER_CONSTANTINE, key: config.AUTH_CONSTANTINE },
+  { user: config.AUTH_USER_TITUS, key: config.AUTH_TITUS }
 ];
 
 const endpoints = [
@@ -50,18 +49,16 @@ const client = new Discord.Client();
 
 async function requestHandler(endpoint, request, headers = null) {
   const apiClient = axios.create();
-  let success = false;
   try {
     if (headers) {
       await apiClient.post(endpoint, request, headers);
     } else {
       await apiClient.post(endpoint, request);
     }
-    success = true;
-    return success;
+    return true;
   } catch (e) {
     console.log(e, headers);
-    return success;
+    return false;
   }
 }
 
@@ -78,19 +75,15 @@ async function faucetClaim(address = null) {
 
   try {
     let responseMsg = '';
+
     for (let i = 0; i < requests.length; i++) {
-      let headers, success;
-      if (FaucetAuth[i].user && FaucetAuth[i].key) {
-        headers = {
-          auth: {
-            username: FaucetAuth[i].user,
-            password: FaucetAuth[i].key
-          }
-        };
-        success = await requestHandler(endpoints[i], requests[i], headers);
-      } else {
-        success = await requestHandler(endpoints[i], requests[i]);
-      }
+      const headers = {
+        auth: {
+          username: FaucetAuth[i].user,
+          password: FaucetAuth[i].key
+        }
+      };
+      const success = await requestHandler(endpoints[i], requests[i], headers);
       // Success / Network error
       if (success) {
         responseMsg += "\n- " + DEFAULT_SUCCESS_MSG_PREFIX + " " + BlockExplorers[i] + address;
@@ -98,7 +91,7 @@ async function faucetClaim(address = null) {
         responseMsg += "\n- " + NETWORK_ERROR_MSG_PREFIX + endpoints[i] + '';
       }
       // Return status replies
-      if (i == (requests.length-1)) {
+      if (i == (requests.length - 1)) {
         return responseMsg;
       }
     }
