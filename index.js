@@ -1,40 +1,20 @@
 #!/usr/bin/env node
 
-const winston = require('winston');
-const logger = winston.createLogger({
-  level: 'debug',
-  levels: winston.config.cli.levels,
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.Console({
-      format: winston.format.combine(
-        winston.format.colorize(),
-        winston.format.simple()
-      ),
-    })
-  ]
-});
+const logger = require('./logger');
 
 logger.info('Initializing Discord faucet bot...');
 
-const dotenv = require('dotenv').config();
 const axios = require('axios');
 const Discord = require('discord.js');
 
-// Config parser
+const dotenv = require('dotenv').config();
 if (dotenv.error) {
   throw dotenv.error
 }
-
 const config = dotenv.parsed;
 
 const DEFAULT_ERROR_MSG = 'I don\'t understand, tell me more 🤔 \n**Example request:** `!faucet archway1znhxr5j4ty5rz09z49thrj7gnxpm9jl5nnmvjx`';
 const DEFAULT_HELP_MSG = '\n**Usage:** `!faucet {address}` \n**Example request:** `!faucet archway1znhxr5j4ty5rz09z49thrj7gnxpm9jl5nnmvjx`';
-
-const client = new Discord.Client();
 
 class Chain {
   constructor(chainName) {
@@ -71,22 +51,27 @@ const Chains = ['augusta', 'constantine', 'titus'].map(chainName => new Chain(ch
 async function faucetClaim(address, metadata) {
   const faucetLogger = logger.child({ address, ...metadata });
   faucetLogger.info(`Requesting funds`);
+  faucetProfiler = faucetLogger.startTimer();
+
   const requests = Chains.map(async chain => {
     const { chainName } = chain;
     const chainLogger = faucetLogger.child({ chainName });
+    const chainProfiler = chainLogger.startTimer();
     try {
-      chainLogger.info(`Sending claim request`);
+      chainLogger.info('Sending claim request');
       await chain.faucetClaim(address);
       return `- Faucet claim was processed 🎉, check your new balances at: ${chain.explorer}/${address}`;
     } catch (e) {
       chainLogger.error('Claim request failed', { reason: e });
       return `- Request to faucet on ${chain.chainName} network failed`;
     } finally {
-      chainLogger.info(`Claim request finished`);
+      chainProfiler.done('Claim request finished');
     }
   });
 
   const messages = await Promise.all(requests);
+  faucetProfiler.done('Faucet request finished');
+
   return `\n${messages.join('\n')}`;
 }
 
@@ -94,6 +79,8 @@ function isArchwayAddress(address) {
   const regexp = new RegExp('^(archway)1([a-z0-9]+)$');
   return regexp.test(address);
 }
+
+const client = new Discord.Client();
 
 client.on('ready', () => {
   logger.info(`Logged in as ${client.user.tag}! Waiting for messages...`);
@@ -125,7 +112,7 @@ client.on('message', async message => {
   }
 
   let claimResponse = await faucetClaim(address, { messageId, authorUsername });
-  // return message.reply(claimResponse);
+  return message.reply(claimResponse);
 });
 
 client.login(config.DISCORD_TOKEN);
