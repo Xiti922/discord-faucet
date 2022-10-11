@@ -1,18 +1,18 @@
 const TitusInfo = {
   // Chain-id of the Cosmos SDK chain.
-  chainId: "titus-1",
+  chainId: "athena-1",
   // The name of the chain to be displayed to the user.
-  chainName: "Titus Testnet",
+  chainName: "Terp testnet",
   // RPC endpoint of the chain.
-  rpc: "https://rpc.titus-1.archway.tech" ,
+  rpc: "https://rpc-terp.zenchainlabs.io" ,
   // REST endpoint of the chain.
-  rest: "https://api.titus-1.archway.tech",
+  rest: "https://api-terp.zenchainlabs.io/",
   // Staking coin information
   stakeCurrency: {
     // Coin denomination to be displayed to the user.
-    coinDenom: "TITUS",
+    coinDenom: "TERPX",
     // Actual denom (i.e. uatom, uscrt) used by the blockchain.
-    coinMinimalDenom: "utitus",
+    coinMinimalDenom: "uterpx",
     // # of decimal points to convert minimal denomination to user-facing denomination.
     coinDecimals: 6,
     // (Optional) Keplr can show the fiat value of the coin if a coingecko id is provided.
@@ -39,19 +39,29 @@ const TitusInfo = {
   //   bech32PrefixConsPub: string;
   // }
   bech32Config: {
-    bech32PrefixAccAddr: "archway",
-    bech32PrefixAccPub: "archwaypub",
-    bech32PrefixValAddr: "archwayvaloper",
-    bech32PrefixValPub: "archwayvaloperpub",
-    bech32PrefixConsAddr: "archwayvalcons",
-    bech32PrefixConsPub: "archwayvalconspub"
+    bech32PrefixAccAddr: "terp",
+    bech32PrefixAccPub: "terppub",
+    bech32PrefixValAddr: "terpvaloper",
+    bech32PrefixValPub: "terpvaloperpub",
+    bech32PrefixConsAddr: "terpvalcons",
+    bech32PrefixConsPub: "terpvalconspub"
   },
   // List of all coin/tokens used in this chain.
   currencies: [{
     // Coin denomination to be displayed to the user.
-    coinDenom: "TITUS",
+    coinDenom: "TERPX",
     // Actual denom (i.e. uatom, uscrt) used by the blockchain.
-    coinMinimalDenom: "utitus",
+    coinMinimalDenom: "uterpx",
+    // # of decimal points to convert minimal denomination to user-facing denomination.
+    coinDecimals: 6,
+    // (Optional) Keplr can show the fiat value of the coin if a coingecko id is provided.
+    // You can get id from https://api.coingecko.com/api/v3/coins/list if it is listed.
+    // coinGeckoId: ""
+  }],
+    // Coin denomination to be displayed to the user.
+    coinDenom: "PERSYX",
+    // Actual denom (i.e. uatom, uscrt) used by the blockchain.
+    coinMinimalDenom: "upersyx",
     // # of decimal points to convert minimal denomination to user-facing denomination.
     coinDecimals: 6,
     // (Optional) Keplr can show the fiat value of the coin if a coingecko id is provided.
@@ -61,9 +71,9 @@ const TitusInfo = {
   // List of coin/tokens used as a fee token in this chain.
   feeCurrencies: [{
     // Coin denomination to be displayed to the user.
-    coinDenom: "TITUS",
+    coinDenom: "PERSYX",
     // Actual denom (i.e. uatom, uscrt) used by the blockchain.
-    coinMinimalDenom: "utitus",
+    coinMinimalDenom: "upersyx",
     // # of decimal points to convert minimal denomination to user-facing denomination.
     coinDecimals: 6,
     // (Optional) Keplr can show the fiat value of the coin if a coingecko id is provided.
@@ -85,8 +95,7 @@ const TitusInfo = {
     average: 0.1,
     high: 0.2
   },
-  faucets: ["https://faucet.titus-1.archway.tech"],
-  features: ['cosmwasm']
+  features: ['cosmwasm', 'ibc-go', 'stargate', 'ibc-transfer']
 };
 
-module.exports = TitusInfo;
+module.exports = TerpInfo;
